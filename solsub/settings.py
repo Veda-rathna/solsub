@@ -31,7 +31,7 @@ SECRET_KEY = 'django-insecure-7-iamrm%2rhf4elz7&j%irgh!sz8$&j^yj%mgy%d5y_x5e2f6+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['solsub.onrender.com']
 
 
 # Application definition
@@ -65,6 +65,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'solsub.middleware.Require2FAMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'solsub.urls'
