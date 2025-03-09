@@ -186,7 +186,6 @@ if DEBUG:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Social Account Settings
 SOCIALACCOUNT_PROVIDERS = {
