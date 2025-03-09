@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Enter Backup Code</h3>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="backup_code">Backup Code:</label>
+                            <input type="text" class="form-control" id="backup_code" name="backup_code" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-3">Verify Code</button>
+                    </form>
+                    
+                    <hr>
+                    <div class="text-center">
+                        <p>Need new backup codes?</p>
+                        <a href="{% url 'generate_backup_codes' %}" class="btn btn-secondary">Generate New Codes</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

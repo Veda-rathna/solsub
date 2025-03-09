@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Set Up Two-Factor Authentication</h3>
+                </div>
+                <div class="card-body">
+                    <!-- QR Code Section -->
+                    <h4>1. Scan QR Code</h4>
+                    <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
+                    
+                    <h4 class="mt-4">Manual Setup</h4>
+                    <p>If you can't scan the QR code, enter this code manually: <strong>{{ secret_key }}</strong></p>
+                    
+                    <!-- Backup Codes Section -->
+                    <h4 class="mt-4">2. Save Your Backup Codes</h4>
+                    <div class="alert alert-warning">
+                        <strong>Important!</strong> Save these backup codes in a secure place. 
+                        They will only be shown once and are needed if you lose access to your authenticator app.
+                    </div>
+                    <div class="backup-codes bg-light p-3 rounded">
+                        {% for code in backup_codes %}
+                            <div class="code-item">{{ code.code }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Verification Section -->
+                    <h4 class="mt-4">3. Verify Setup</h4>
+                    <form method="post" action="{% url 'verify_2fa' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="token">Enter the 6-digit code from your authenticator app:</label>
+                            <input type="text" class="form-control" id="token" name="token" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-3">Verify and Complete Setup</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .backup-codes {
+        font-family: monospace;
+        font-size: 1.2em;
+    }
+    .code-item {
+        padding: 5px;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>Your Clusters</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{% url 'create_cluster' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add New Cluster
+            </a>
+        </div>
+    </div>
+
+    <!-- Bank Details Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h3>Bank Details</h3>
+        </div>
+        <div class="card-body">
+            {% if bank_details %}
+                <div class="row">
+                    <div class="col-md-3">
+                        <p><strong>Bank Name:</strong> {{ bank_details.bank_name }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Account Number:</strong> {{ bank_details.account_number }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>IFSC Code:</strong> {{ bank_details.ifsc_code }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Branch:</strong> {{ bank_details.branch_name }}</p>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <a href="{% url 'add_bank_details' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Update Bank Details
+                    </a>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <p>No bank details added yet.</p>
+                    <a href="{% url 'add_bank_details' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Bank Details
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Clusters Section -->
+    {% if clusters %}
+        <div class="row">
+            {% for cluster in clusters %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">{{ cluster.cluster_name }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Price:</strong> ${{ cluster.cluster_price }}<br>
+                                <strong>Timeline:</strong> {{ cluster.cluster_timeline }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <i class="fas fa-info-circle"></i> No clusters found. Create your first cluster using the button above!
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}

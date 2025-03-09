@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Your Backup Codes</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <strong>Important:</strong> Save these backup codes in a secure place. They will only be shown once!
+                    </div>
+                    <div class="backup-codes">
+                        {% for code in codes %}
+                            <div class="code-item">{{ code.code }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-4">
+                        <a href="{% url 'home' %}" class="btn btn-primary">I've saved these codes</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .backup-codes {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+        font-family: monospace;
+    }
+    .code-item {
+        padding: 5px;
+        font-size: 1.2em;
+    }
+</style>
+{% endblock %}
