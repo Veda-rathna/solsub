@@ -1,27 +1,157 @@
 {% extends 'base.html' %}
 
+{% block title %}SolSub - Create Cluster{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <h2 class="text-center">Create a New Cluster</h2>
-    <form method="POST" action="{% url 'create_cluster' %}">
-        {% csrf_token %}
-        
-        <div class="mb-3">
-            <label for="cluster_name" class="form-label">Cluster Name</label>
-            <input type="text" class="form-control" id="cluster_name" name="cluster_name" required>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h3 class="mb-0 fw-bold">
+                        <i class="fas fa-plus-circle me-2"></i>Create a New Cluster
+                    </h3>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endif %}
+                    
+                    <form method="POST" action="{% url 'create_cluster' %}" id="clusterForm">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label for="cluster_name" class="form-label fw-medium">Cluster Name</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg" id="cluster_name" name="cluster_name" 
+                                       required maxlength="16" pattern="[a-zA-Z0-9]+" 
+                                       title="Cluster name must be alphanumeric (16 characters max)"
+                                       value="{{ cluster_name|default:'' }}">
+                                <span class="input-group-text bg-light" id="cluster-status">
+                                    <i class="fas fa-question-circle text-muted"></i>
+                                </span>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Cluster name should be unique like an Instagram ID (alphanumeric, max 16 characters).
+                            </div>
+                            <div id="cluster-name-feedback" class="invalid-feedback">
+                                This cluster name already exists. Please choose a different name.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="cluster_price" class="form-label fw-medium">Cluster Price (₹)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" min="0" class="form-control form-control-lg" 
+                                       id="cluster_price" name="cluster_price" required 
+                                       value="{{ cluster_price|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="cluster_timeline" class="form-label fw-medium">Cluster Timeline</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg" id="cluster_timeline" 
+                                       name="cluster_timeline" required 
+                                       value="{{ cluster_timeline|default:'' }}"
+                                       placeholder="Enter the timeline">
+                                <span class="input-group-text bg-light">
+                                    <i class="fas fa-calendar-alt text-muted"></i>
+                                </span>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Enter the duration
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" id="create-cluster-btn" disabled>
+                                <i class="fas fa-plus-circle me-2"></i>Create Cluster
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        
-        <div class="mb-3">
-            <label for="cluster_price" class="form-label">Cluster Price</label>
-            <input type="number" step="0.01" class="form-control" id="cluster_price" name="cluster_price" required>
-        </div>
-        
-        <div class="mb-3">
-            <label for="cluster_timeline" class="form-label">Cluster Defined Timeline</label>
-            <input type="text" class="form-control" id="cluster_timeline" name="cluster_timeline" required>
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Create Cluster</button>
-    </form>
+    </div>
 </div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clusterNameInput = document.getElementById('cluster_name');
+        const clusterStatus = document.getElementById('cluster-status');
+        const clusterFeedback = document.getElementById('cluster-name-feedback');
+        const createClusterBtn = document.getElementById('create-cluster-btn');
+        
+        let typingTimer;
+        const doneTypingInterval = 500; // ms
+        
+        // Check initial state
+        if (clusterNameInput.value) {
+            checkClusterName();
+        }
+        
+        // On keyup, start the countdown
+        clusterNameInput.addEventListener('keyup', function() {
+            clearTimeout(typingTimer);
+            
+            if (clusterNameInput.value) {
+                // Show loading state
+                clusterStatus.innerHTML = '<i class="fas fa-spinner fa-spin text-muted"></i>';
+                
+                typingTimer = setTimeout(checkClusterName, doneTypingInterval);
+            } else {
+                // Reset status if input is empty
+                clusterStatus.innerHTML = '<i class="fas fa-question-circle text-muted"></i>';
+                clusterNameInput.classList.remove('is-invalid');
+                clusterNameInput.classList.remove('is-valid');
+                createClusterBtn.disabled = true;
+            }
+        });
+        
+        // Function to check if cluster name exists
+        function checkClusterName() {
+            const clusterName = clusterNameInput.value;
+            
+            if (!clusterName || !clusterName.match(/^[a-zA-Z0-9]+$/)) {
+                clusterStatus.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                clusterNameInput.classList.add('is-invalid');
+                clusterFeedback.textContent = "Cluster name must be alphanumeric.";
+                createClusterBtn.disabled = true;
+                return;
+            }
+            
+            fetch(`/check-cluster-name/?cluster_name=${encodeURIComponent(clusterName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        // Cluster name exists
+                        clusterStatus.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                        clusterNameInput.classList.add('is-invalid');
+                        clusterNameInput.classList.remove('is-valid');
+                        clusterFeedback.textContent = "This cluster name already exists. Please choose a different name.";
+                        createClusterBtn.disabled = true;
+                    } else {
+                        // Cluster name is available
+                        clusterStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                        clusterNameInput.classList.remove('is-invalid');
+                        clusterNameInput.classList.add('is-valid');
+                        createClusterBtn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking cluster name:', error);
+                    clusterStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i>';
+                });
+        }
+    });
+</script>
+{% endblock %}
 {% endblock %}

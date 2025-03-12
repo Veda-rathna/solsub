@@ -1,0 +1,147 @@
+{% extends 'base_public.html' %}
+
+{% block title %}SolSub - Make a Payment{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h3 class="mb-0 fw-bold">Make a Payment</h3>
+                </div>
+                <div class="card-body p-4">
+                    <form id="clusterForm">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label for="cluster_name" class="form-label fw-medium">Enter Cluster Name</label>
+                            <input type="text" class="form-control form-control-lg" id="cluster_name" name="cluster_name"
+                                required maxlength="16" pattern="[a-zA-Z0-9]+"
+                                title="Cluster name must be alphanumeric (16 characters max)">
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Cluster name should be unique like an Instagram ID (alphanumeric, max 16 characters).
+                            </div>
+                            <div id="clusterStatus" class="mt-2"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg px-4" id="get-pricing-btn" disabled>
+                            <i class="fas fa-search-dollar me-2"></i>Get Pricing
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Pricing Details Section -->
+            <div id="pricingDetails" class="card mt-4 shadow d-none">
+                <div class="card-header py-3">
+                    <h3 class="mb-0 fw-bold">Pricing Details</h3>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="fw-bold text-primary">
+                                <i class="fas fa-tag me-2"></i>Cluster Name:
+                            </h5>
+                            <p id="displayClusterName" class="fs-5 fw-medium"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="fw-bold text-primary">
+                                <i class="fas fa-rupee-sign me-2"></i>Price:
+                            </h5>
+                            <p id="displayPrice" class="fs-5 fw-medium"></p>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5 class="fw-bold text-primary">
+                                <i class="fas fa-calendar-alt me-2"></i>Timeline:
+                            </h5>
+                            <p id="displayTimeline" class="fs-5 fw-medium"></p>
+                        </div>
+                    </div>
+                    <div class="mt-4 d-grid">
+                        <a href="#" class="btn btn-success btn-lg">
+                            <i class="fas fa-credit-card me-2"></i>Proceed to Payment
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const clusterNameInput = document.getElementById('cluster_name');
+        const clusterStatus = document.getElementById('clusterStatus');
+        const getPricingBtn = document.getElementById('get-pricing-btn');
+        const pricingDetails = document.getElementById('pricingDetails');
+        const displayClusterName = document.getElementById('displayClusterName');
+        const displayPrice = document.getElementById('displayPrice');
+        const displayTimeline = document.getElementById('displayTimeline');
+
+        let typingTimer;
+        const debounceTime = 500; // Delay before making API call
+
+        clusterNameInput.addEventListener('keyup', function () {
+            clearTimeout(typingTimer);
+            const clusterName = clusterNameInput.value.trim();
+
+            if (clusterName) {
+                clusterStatus.innerHTML = '<i class="fas fa-spinner fa-spin text-muted"></i>';
+                typingTimer = setTimeout(() => checkClusterName(clusterName), debounceTime);
+            } else {
+                clusterStatus.innerHTML = '<i class="fas fa-question-circle text-muted"></i>';
+                getPricingBtn.disabled = true;
+                pricingDetails.classList.add('d-none');
+            }
+        });
+
+        function checkClusterName(clusterName) {
+            fetch(`/check-cluster-name/?cluster_name=${encodeURIComponent(clusterName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        clusterStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i> Cluster found!';
+                        getPricingBtn.disabled = false;
+                    } else {
+                        clusterStatus.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Cluster does not exist!';
+                        getPricingBtn.disabled = true;
+                        pricingDetails.classList.add('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    clusterStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Error checking cluster.';
+                    getPricingBtn.disabled = true;
+                });
+        }
+
+        document.getElementById('clusterForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            
+            const clusterName = clusterNameInput.value.trim();
+            fetch(`/get-pricing/?cluster_name=${encodeURIComponent(clusterName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayClusterName.textContent = data.cluster_name;
+                        displayPrice.textContent = `₹${data.price}`;
+                        displayTimeline.textContent = data.timeline;
+                        pricingDetails.classList.remove('d-none');
+                    } else {
+                        clusterStatus.innerHTML = `<i class="fas fa-exclamation-circle text-danger"></i> ${data.error}`;
+                        pricingDetails.classList.add('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching pricing:', error);
+                    clusterStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Error fetching pricing details.';
+                    pricingDetails.classList.add('d-none');
+                });
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

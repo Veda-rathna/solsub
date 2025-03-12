@@ -31,3 +31,15 @@ class UserProfile(Document):
     meta = {
         'collection': 'users'
     }
+    
+    def add_cluster(self, cluster_data):
+        """Adds a new cluster to the user's profile."""
+        new_cluster = ClusterDetails(**cluster_data)
+        self.clusters.append(new_cluster)
+        self.save()
+    
+    @classmethod
+    def cluster_name_exists(cls, cluster_name):
+        """Check if a cluster name already exists in any user profile."""
+        return cls.objects(clusters__cluster_name=cluster_name).first()
+

@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-import json  # Import from the new file
+import json
 from django.contrib.auth.decorators import login_required
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django_otp.util import random_hex
@@ -9,10 +9,67 @@ import qrcode
 import qrcode.image.svg
 from io import BytesIO
 import base64
-from .models import BackupCode
+from .models import BackupCode, Cluster
 from django.contrib import messages
 from .mongo_models import UserProfile, ClusterDetails, BankDetails
 from django_otp import devices_for_user
+
+def index(request):
+    """
+    View for the landing page
+    """
+    return render(request, "index.html")
+
+@csrf_exempt
+def get_pricing(request):
+    cluster_name = request.GET.get('cluster_name')
+
+    if not cluster_name:
+        return JsonResponse({'success': False, 'error': 'Cluster name is required'}, status=400)
+
+    # Search for cluster details inside the UserProfile model
+    user = UserProfile.objects(clusters__cluster_name=cluster_name).first()
+
+    if user:
+        # Find the exact cluster from the user's list of clusters
+        cluster = next((c for c in user.clusters if c.cluster_name == cluster_name), None)
+
+        if cluster:
+            return JsonResponse({
+                'success': True,
+                'cluster_name': cluster.cluster_name,
+                'price': str(cluster.cluster_price),  # Changed from cluster_price to price
+                'timeline': cluster.cluster_timeline   # Changed from cluster_timeline to timeline
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+
+def check_cluster_name(request):
+    """
+    AJAX endpoint to check if a cluster name exists in the entire database
+    """
+    cluster_name = request.GET.get('cluster_name', '')
+
+    # Check in Django model (PostgreSQL)
+    django_exists = Cluster.objects.filter(cluster_name=cluster_name).exists()
+
+    # Check in MongoDB (across all users, not just one user)
+    mongo_exists = UserProfile.objects(clusters__cluster_name=cluster_name).first() is not None
+
+    exists = django_exists or mongo_exists
+
+    return JsonResponse({'exists': exists})
+
+
+def get_existing_clusters(request):
+    clusters = Cluster.objects.values_list('name', flat=True)
+    return JsonResponse({"clusters": list(clusters)})
+
+def pay(request):
+    """
+    View for the payment page
+    """
+    return render(request, "pay.html")
 
 @login_required
 def home(request):
@@ -38,8 +95,25 @@ def bank_details(request):
 @login_required
 def create_cluster(request):
     if request.method == "POST":
+        cluster_name = request.POST.get("cluster_name")
+        
+        # Check if cluster name already exists in Django model
+        django_exists = Cluster.objects.filter(cluster_name=cluster_name).exists()
+        
+        # Check if cluster name already exists in MongoDB model
+        mongo_exists = UserProfile.objects(clusters__cluster_name=cluster_name).first() is not None
+        
+        if django_exists or mongo_exists:
+            messages.error(request, f"Cluster name '{cluster_name}' already exists. Please choose a different name.")
+            return render(request, "cluster_details.html", {
+                'error': f"Cluster name '{cluster_name}' already exists.",
+                'cluster_name': cluster_name,
+                'cluster_price': request.POST.get("cluster_price"),
+                'cluster_timeline': request.POST.get("cluster_timeline")
+            })
+        
         cluster_data = {
-            "cluster_name": request.POST.get("cluster_name"),
+            "cluster_name": cluster_name,
             "cluster_price": float(request.POST.get("cluster_price")),
             "cluster_timeline": request.POST.get("cluster_timeline")
         }
@@ -53,6 +127,16 @@ def create_cluster(request):
             ).save()
 
         user_profile.add_cluster(cluster_data)
+        
+        # Also save to Django model for consistency
+        Cluster.objects.create(
+            cluster_name=cluster_name,
+            cluster_id=f"cluster_{cluster_name}",
+            cluster_price=request.POST.get("cluster_price"),
+            cluster_timeline=request.POST.get("cluster_timeline")
+        )
+        
+        messages.success(request, f"Cluster '{cluster_name}' created successfully.")
         return redirect("home")
 
     return render(request, "cluster_details.html")
