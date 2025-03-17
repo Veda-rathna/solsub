@@ -11,8 +11,10 @@ from io import BytesIO
 import base64
 from .models import BackupCode, Cluster
 from django.contrib import messages
-from .mongo_models import UserProfile, ClusterDetails, BankDetails
+from .mongo_models import UserProfile, ClusterDetails, BankDetails, MatchId
 from django_otp import devices_for_user
+from datetime import datetime, timedelta
+import uuid
 
 def index(request):
     """
@@ -27,22 +29,102 @@ def get_pricing(request):
     if not cluster_name:
         return JsonResponse({'success': False, 'error': 'Cluster name is required'}, status=400)
 
-    # Search for cluster details inside the UserProfile model
     user = UserProfile.objects(clusters__cluster_name=cluster_name).first()
 
     if user:
-        # Find the exact cluster from the user's list of clusters
         cluster = next((c for c in user.clusters if c.cluster_name == cluster_name), None)
-
         if cluster:
             return JsonResponse({
                 'success': True,
                 'cluster_name': cluster.cluster_name,
-                'price': str(cluster.cluster_price),  # Changed from cluster_price to price
-                'timeline': cluster.cluster_timeline   # Changed from cluster_timeline to timeline
+                'price': str(cluster.cluster_price),
+                'timeline': cluster.cluster_timeline
             })
     
     return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+
+@csrf_exempt
+def check_match_id(request):
+    match_id = request.GET.get('match_id', '')
+    
+    if not match_id:
+        return JsonResponse({'success': False, 'error': 'Match ID is required'}, status=400)
+    
+    match_id_obj = MatchId.objects(match_id=match_id).first()
+    
+    if match_id_obj:
+        user = UserProfile.objects(clusters__cluster_name=match_id_obj.cluster_name).first()
+        if user:
+            cluster = next((c for c in user.clusters if c.cluster_name == match_id_obj.cluster_name), None)
+            if cluster:
+                timeline = cluster.cluster_timeline
+                days_valid = int(timeline.split()[0]) if timeline and timeline.split()[0].isdigit() else 30
+                expiry_date = match_id_obj.timestamp + timedelta(days=days_valid)
+                is_active = datetime.now() < expiry_date
+                
+                return JsonResponse({
+                    'success': True,
+                    'exists': True,
+                    'is_active': is_active,
+                    'status': 'Active' if is_active else 'Inactive',  # New field for explicit status
+                    'cluster_name': match_id_obj.cluster_name,
+                    'price': str(cluster.cluster_price),
+                    'timeline': cluster.cluster_timeline,
+                    'last_paid_date': match_id_obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                })
+    
+    return JsonResponse({
+        'success': True,
+        'exists': False,
+        'status': 'Inactive',
+        'is_active': False,
+        'last_paid_date': '-'
+    })
+@csrf_exempt
+def generate_match_id(request):
+    """
+    Generate a new match ID for a cluster
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST method is allowed'}, status=405)
+    
+    data = json.loads(request.body)
+    cluster_name = data.get('cluster_name', '')
+    
+    if not cluster_name:
+        return JsonResponse({'success': False, 'error': 'Cluster name is required'}, status=400)
+    
+    # Check if the cluster exists
+    user = UserProfile.objects(clusters__cluster_name=cluster_name).first()
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+    
+    # Find the exact cluster from the user's list of clusters
+    cluster = next((c for c in user.clusters if c.cluster_name == cluster_name), None)
+    if not cluster:
+        return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+    
+    # Extract the timeline value (assuming it's in the format "X days")
+    timeline = cluster.cluster_timeline
+    days_valid = int(timeline.split()[0]) if timeline and timeline.split()[0].isdigit() else 30
+    
+    # Generate a new match ID
+    new_match_id = str(uuid.uuid4())[:8].upper()
+    
+    # Create a new MatchId document
+    match_id_obj = MatchId(
+        match_id=new_match_id,
+        cluster_name=cluster_name,
+        timestamp=datetime.now(),
+        days_valid=days_valid
+    )
+    match_id_obj.save()
+    
+    return JsonResponse({
+        'success': True,
+        'match_id': new_match_id,
+        'is_active': True
+    })
 
 def check_cluster_name(request):
     """

@@ -6,7 +6,9 @@ from mongoengine import (
     EmbeddedDocumentListField,
     EmbeddedDocumentField,
     EmailField, 
-    DateTimeField
+    DateTimeField,
+    BooleanField,
+    IntField
 )
 
 class BankDetails(EmbeddedDocument):
@@ -19,6 +21,33 @@ class ClusterDetails(EmbeddedDocument):
     cluster_name = StringField(required=True, max_length=255)
     cluster_price = DecimalField(precision=2)
     cluster_timeline = StringField(max_length=255)
+
+class MatchId(Document):
+    match_id = StringField(required=True, unique=True)
+    cluster_name = StringField(required=True)
+    timestamp = DateTimeField(required=True)
+    days_valid = IntField(required=True)
+    
+    meta = {
+        'collection': 'match_ids'
+    }
+    
+    @classmethod
+    def get_by_cluster(cls, cluster_name):
+        """Get match ID for a specific cluster"""
+        return cls.objects(cluster_name=cluster_name).first()
+    
+    @classmethod
+    def is_active(cls, match_id):
+        """Check if a match ID is active based on its timestamp and validity period"""
+        from datetime import datetime, timedelta
+        
+        match = cls.objects(match_id=match_id).first()
+        if not match:
+            return False
+            
+        expiry_date = match.timestamp + timedelta(days=match.days_valid)
+        return datetime.now() < expiry_date
 
 class UserProfile(Document):
     user_id = StringField(required=True, unique=True)
