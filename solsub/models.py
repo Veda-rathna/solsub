@@ -8,6 +8,17 @@ class Cluster(models.Model):
     cluster_id = models.CharField(max_length=100, unique=True)
     cluster_price = models.DecimalField(max_digits=10, decimal_places=2)
     cluster_timeline = models.CharField(max_length=255)
+    api_key = models.CharField(max_length=32, unique=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.api_key:
+            # Generate a unique API key
+            while True:
+                key = secrets.token_hex(16)
+                if not Cluster.objects.filter(api_key=key).exists():
+                    self.api_key = key
+                    break
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.cluster_name

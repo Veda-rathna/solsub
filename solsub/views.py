@@ -15,6 +15,7 @@ from .mongo_models import UserProfile, ClusterDetails, BankDetails, MatchId
 from django_otp import devices_for_user
 from datetime import datetime, timedelta
 import uuid
+import secrets
 
 def index(request):
     """
@@ -38,7 +39,8 @@ def get_pricing(request):
                 'success': True,
                 'cluster_name': cluster.cluster_name,
                 'price': str(cluster.cluster_price),
-                'timeline': cluster.cluster_timeline
+                'timeline': cluster.cluster_timeline,
+                'api_key': cluster.api_key
             })
     
     return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
@@ -66,10 +68,11 @@ def check_match_id(request):
                     'success': True,
                     'exists': True,
                     'is_active': is_active,
-                    'status': 'Active' if is_active else 'Inactive',  # New field for explicit status
+                    'status': 'Active' if is_active else 'Inactive',
                     'cluster_name': match_id_obj.cluster_name,
                     'price': str(cluster.cluster_price),
                     'timeline': cluster.cluster_timeline,
+                    'api_key': match_id_obj.api_key,  # Use the api_key from MatchId
                     'last_paid_date': match_id_obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')
                 })
     
@@ -111,19 +114,21 @@ def generate_match_id(request):
     # Generate a new match ID
     new_match_id = str(uuid.uuid4())[:8].upper()
     
-    # Create a new MatchId document
+    # Create a new MatchId document, including the api_key
     match_id_obj = MatchId(
         match_id=new_match_id,
         cluster_name=cluster_name,
         timestamp=datetime.now(),
-        days_valid=days_valid
+        days_valid=days_valid,
+        api_key=cluster.api_key  # Include the api_key from the cluster
     )
     match_id_obj.save()
     
     return JsonResponse({
         'success': True,
         'match_id': new_match_id,
-        'is_active': True
+        'is_active': True,
+        'api_key': cluster.api_key  # Optionally return the api_key in the response
     })
 
 def check_cluster_name(request):
@@ -171,8 +176,13 @@ def home(request):
 def cluster_details(request):
     return render(request, 'cluster_details.html')
 
+@login_required
 def bank_details(request):
-    return render(request, 'bank_details.html')
+    user_profile = UserProfile.objects(user_id=str(request.user.id)).first()
+    
+    return render(request, 'bank_details.html', {
+        "bank_details": user_profile.bank_details if user_profile else None
+    })
 
 @login_required
 def create_cluster(request):
@@ -194,10 +204,17 @@ def create_cluster(request):
                 'cluster_timeline': request.POST.get("cluster_timeline")
             })
         
+        # Generate a unique api_key
+        while True:
+            api_key = secrets.token_hex(16)
+            if not UserProfile.objects(clusters__api_key=api_key).first():
+                break
+
         cluster_data = {
             "cluster_name": cluster_name,
             "cluster_price": float(request.POST.get("cluster_price")),
-            "cluster_timeline": request.POST.get("cluster_timeline")
+            "cluster_timeline": request.POST.get("cluster_timeline"),
+            "api_key": api_key  # Include the api_key in the cluster_data
         }
 
         user_profile = UserProfile.objects(user_id=str(request.user.id)).first()
@@ -210,13 +227,15 @@ def create_cluster(request):
 
         user_profile.add_cluster(cluster_data)
         
-        # Also save to Django model for consistency
-        Cluster.objects.create(
+        # Also save to Django model for consistency, including the api_key
+        cluster = Cluster(
             cluster_name=cluster_name,
             cluster_id=f"cluster_{cluster_name}",
             cluster_price=request.POST.get("cluster_price"),
-            cluster_timeline=request.POST.get("cluster_timeline")
+            cluster_timeline=request.POST.get("cluster_timeline"),
+            api_key=api_key  # Set the same api_key in the Django model
         )
+        cluster.save()
         
         messages.success(request, f"Cluster '{cluster_name}' created successfully.")
         return redirect("home")
@@ -224,22 +243,15 @@ def create_cluster(request):
     return render(request, "cluster_details.html")
 
 @login_required
-def add_bank_details_for_cluster(request, cluster_index):
-    # Implementation for adding bank details to a specific cluster
-    pass
+def bank_details(request):
+    return render(request, 'bank_details.html')
 
 @login_required
 def add_bank_details(request):
-    print("Starting bank details view")  # Debug print
+    user_profile = UserProfile.objects(user_id=str(request.user.id)).first()
     
     if request.method == "POST":
-        print("Received POST request")  # Debug print
-        print("POST data:", request.POST)  # Debug print
-        
         # Get the user profile
-        user_profile = UserProfile.objects(user_id=str(request.user.id)).first()
-        print("Found user profile:", user_profile)  # Debug print
-
         if not user_profile:
             user_profile = UserProfile(
                 user_id=str(request.user.id),
@@ -254,16 +266,17 @@ def add_bank_details(request):
             ifsc_code=request.POST.get('ifsc_code'),
             branch_name=request.POST.get('branch_name')
         )
-        print("Created bank details object:", bank_details)  # Debug print
 
         # Update user profile
         user_profile.bank_details = bank_details
         user_profile.save()
-        print("Saved user profile")  # Debug print
         
+        messages.success(request, "Bank details saved successfully!")
         return redirect('home')
 
-    return render(request, "bank_details.html")
+    return render(request, "bank_details.html", {
+        "bank_details": user_profile.bank_details if user_profile else None
+    })
 
 @login_required
 def setup_2fa(request):

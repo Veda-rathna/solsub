@@ -195,6 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div>
                                 <div><i class="fas fa-check-circle text-success"></i> Valid Match ID</div>
                                 <div>Status: <span class="${data.status === 'Active' ? 'text-success' : 'text-danger'}">${data.status}</span></div>
+                                <div>API Key: <span class="text-muted">${data.api_key}</span></div>
                                 <div>Last Paid: ${data.last_paid_date}</div>
                             </div>`;
                         proceedPaymentBtn.classList.toggle('d-none', !data.is_active);
@@ -203,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div>
                                 <div><i class="fas fa-exclamation-circle text-danger"></i> Match ID does not belong to this cluster</div>
                                 <div>Status: <span class="text-danger">${data.status}</span></div>
+                                <div>API Key: <span class="text-muted">${data.api_key}</span></div>
                                 <div>Last Paid: ${data.last_paid_date}</div>
                             </div>`;
                         proceedPaymentBtn.classList.add('d-none');
@@ -212,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div>
                             <div><i class="fas fa-times-circle text-danger"></i> Invalid Match ID</div>
                             <div>Status: <span class="text-danger">${data.status}</span></div>
+                            <div>API Key: <span class="text-muted">-</span></div>
                             <div>Last Paid: ${data.last_paid_date}</div>
                         </div>`;
                     proceedPaymentBtn.classList.add('d-none');

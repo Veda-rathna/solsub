@@ -1,40 +1,73 @@
 {% extends 'base.html' %}
 
+{% block title %}SolSub - Bank Details{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h3>Add Bank Details</h3>
+<div class="container py-5">
+    <!-- Page Header -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h2 class="fw-bold mb-0">
+                        <i class="fas fa-university me-2"></i>Bank Details
+                    </h2>
+                    <p class="text-muted mt-2 mb-md-0">Manage your payment information</p>
                 </div>
-                <div class="card-body">
-                    <form method="POST" action="{% url 'add_bank_details' %}">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="bank_name" class="form-label">Bank Name</label>
-                            <input type="text" class="form-control" id="bank_name" name="bank_name" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="account_number" class="form-label">Account Number</label>
-                            <input type="text" class="form-control" id="account_number" name="account_number" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="ifsc_code" class="form-label">IFSC Code</label>
-                            <input type="text" class="form-control" id="ifsc_code" name="ifsc_code" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="branch_name" class="form-label">Branch Name</label>
-                            <input type="text" class="form-control" id="branch_name" name="branch_name" required>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">Save Bank Details</button>
-                    </form>
+                <div class="col-md-6">
+                    <div class="d-flex flex-wrap justify-content-md-end gap-2">
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Bank Details Form -->
+    <div class="card shadow-sm">
+        <div class="card-header py-3 bg-light">
+            <h3 class="mb-0 fw-bold">
+                {% if bank_details %}Update{% else %}Add{% endif %} Bank Details
+            </h3>
+        </div>
+        <div class="card-body p-4">
+            <form method="POST" action="{% url 'add_bank_details' %}">
+                {% csrf_token %}
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="bank_name" class="form-label">Bank Name</label>
+                        <input type="text" class="form-control" id="bank_name" name="bank_name" 
+                               value="{{ bank_details.bank_name|default:'' }}" required>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="account_number" class="form-label">Account Number</label>
+                        <input type="text" class="form-control" id="account_number" name="account_number" 
+                               value="{{ bank_details.account_number|default:'' }}" required>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="ifsc_code" class="form-label">IFSC Code</label>
+                        <input type="text" class="form-control" id="ifsc_code" name="ifsc_code" 
+                               value="{{ bank_details.ifsc_code|default:'' }}" required>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="branch_name" class="form-label">Branch Name</label>
+                        <input type="text" class="form-control" id="branch_name" name="branch_name" 
+                               value="{{ bank_details.branch_name|default:'' }}" required>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>{% if bank_details %}Update{% else %}Save{% endif %} Bank Details
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

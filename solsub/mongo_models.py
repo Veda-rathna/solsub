@@ -21,12 +21,14 @@ class ClusterDetails(EmbeddedDocument):
     cluster_name = StringField(required=True, max_length=255)
     cluster_price = DecimalField(precision=2)
     cluster_timeline = StringField(max_length=255)
+    api_key = StringField(max_length=32)
 
 class MatchId(Document):
     match_id = StringField(required=True, unique=True)
     cluster_name = StringField(required=True)
     timestamp = DateTimeField(required=True)
     days_valid = IntField(required=True)
+    api_key = StringField(max_length=32)
     
     meta = {
         'collection': 'match_ids'
@@ -71,4 +73,3 @@ class UserProfile(Document):
     def cluster_name_exists(cls, cluster_name):
         """Check if a cluster name already exists in any user profile."""
         return cls.objects(clusters__cluster_name=cluster_name).first()
-

@@ -15,7 +15,6 @@ urlpatterns = [
     path('generate-match-id/', views.generate_match_id, name='generate_match_id'),
     path('cluster-details/', views.cluster_details, name='cluster_details'),
     path('create-cluster/', views.create_cluster, name='create_cluster'),
-    path('add-bank-details/<int:cluster_index>/', views.add_bank_details_for_cluster, name='add_bank_details_for_cluster'),
     path('setup-2fa/', views.setup_2fa, name='setup_2fa'),
     path('verify-2fa/', views.verify_2fa, name='verify_2fa'),
     path('verify-2fa-login/', views.verify_2fa_login, name='verify_2fa_login'),
@@ -24,5 +23,6 @@ urlpatterns = [
     path('backup-codes/verify/', views.verify_backup_code, name='verify_backup_code'),
     path('cluster/create/', views.create_cluster, name='create_cluster'),
     path('bank-details/', views.add_bank_details, name='add_bank_details'),
+    path('bank-details/', views.bank_details, name='bank_details'),
 ]
 
