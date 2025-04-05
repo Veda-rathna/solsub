@@ -70,6 +70,26 @@
                             </div>
                         </div>
                         
+                        <div class="mb-4">
+                            <label class="form-label fw-medium">Match ID Generation Type</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="match_id_type" id="admin_generated" value="admin_generated" checked>
+                                <label class="form-check-label" for="admin_generated">
+                                    <i class="fas fa-lock me-1"></i> Admin Generated
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="match_id_type" id="user_created" value="user_created">
+                                <label class="form-check-label" for="user_created">
+                                    <i class="fas fa-users me-1"></i> User Created
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Choose how match IDs will be generated for this cluster.
+                            </div>
+                        </div>
+                        
                         <div class="d-grid">
                             <button type="submit" class="btn btn-primary btn-lg" id="create-cluster-btn" disabled>
                                 <i class="fas fa-plus-circle me-2"></i>Create Cluster
@@ -155,3 +175,4 @@
 </script>
 {% endblock %}
 {% endblock %}
+

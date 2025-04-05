@@ -40,7 +40,8 @@ def get_pricing(request):
                 'cluster_name': cluster.cluster_name,
                 'price': str(cluster.cluster_price),
                 'timeline': cluster.cluster_timeline,
-                'api_key': cluster.api_key
+                'api_key': cluster.api_key,
+                'match_id_type': getattr(cluster, 'match_id_type', 'admin_generated')  # Include match_id_type
             })
     
     return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
@@ -188,6 +189,7 @@ def bank_details(request):
 def create_cluster(request):
     if request.method == "POST":
         cluster_name = request.POST.get("cluster_name")
+        match_id_type = request.POST.get("match_id_type", "admin_generated")  # Get match_id_type from form
         
         # Check if cluster name already exists in Django model
         django_exists = Cluster.objects.filter(cluster_name=cluster_name).exists()
@@ -201,7 +203,8 @@ def create_cluster(request):
                 'error': f"Cluster name '{cluster_name}' already exists.",
                 'cluster_name': cluster_name,
                 'cluster_price': request.POST.get("cluster_price"),
-                'cluster_timeline': request.POST.get("cluster_timeline")
+                'cluster_timeline': request.POST.get("cluster_timeline"),
+                'match_id_type': match_id_type  # Pass match_id_type back to form
             })
         
         # Generate a unique api_key
@@ -214,7 +217,8 @@ def create_cluster(request):
             "cluster_name": cluster_name,
             "cluster_price": float(request.POST.get("cluster_price")),
             "cluster_timeline": request.POST.get("cluster_timeline"),
-            "api_key": api_key  # Include the api_key in the cluster_data
+            "api_key": api_key,  # Include the api_key in the cluster_data
+            "match_id_type": match_id_type  # Add match_id_type to cluster_data
         }
 
         user_profile = UserProfile.objects(user_id=str(request.user.id)).first()
@@ -398,3 +402,57 @@ def verify_backup_code(request):
         messages.error(request, 'Invalid backup code.')
     return render(request, 'account/verify_backup_code.html')
 
+@csrf_exempt
+def create_user_match_id(request):
+    """
+    Create a new match ID for a user-created cluster
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST method is allowed'}, status=405)
+    
+    data = json.loads(request.body)
+    cluster_name = data.get('cluster_name', '')
+    match_id = data.get('match_id', '')
+    
+    if not cluster_name or not match_id:
+        return JsonResponse({'success': False, 'error': 'Cluster name and Match ID are required'}, status=400)
+    
+    # Check if the cluster exists
+    user = UserProfile.objects(clusters__cluster_name=cluster_name).first()
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+    
+    # Find the exact cluster from the user's list of clusters
+    cluster = next((c for c in user.clusters if c.cluster_name == cluster_name), None)
+    if not cluster:
+        return JsonResponse({'success': False, 'error': 'Cluster not found'}, status=404)
+    
+    # Check if this cluster allows user-created match IDs
+    if getattr(cluster, 'match_id_type', 'admin_generated') != 'user_created':
+        return JsonResponse({'success': False, 'error': 'This cluster does not allow user-created match IDs'}, status=403)
+    
+    # Check if the match ID already exists
+    existing_match = MatchId.objects(match_id=match_id).first()
+    if existing_match:
+        return JsonResponse({'success': False, 'error': 'Match ID already exists'}, status=400)
+    
+    # Extract the timeline value (assuming it's in the format "X days")
+    timeline = cluster.cluster_timeline
+    days_valid = int(timeline.split()[0]) if timeline and timeline.split()[0].isdigit() else 30
+    
+    # Create a new MatchId document
+    match_id_obj = MatchId(
+        match_id=match_id,
+        cluster_name=cluster_name,
+        timestamp=datetime.now(),
+        days_valid=days_valid,
+        api_key=cluster.api_key
+    )
+    match_id_obj.save()
+    
+    return JsonResponse({
+        'success': True,
+        'match_id': match_id,
+        'is_active': True,
+        'api_key': cluster.api_key
+    })

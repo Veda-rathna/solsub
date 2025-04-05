@@ -63,11 +63,13 @@
                     <div class="row mt-3">
                         <div class="col-12">
                             <h5 class="fw-bold text-primary">
-                                <i class="fas fa-key me-2"></i>Enter Match ID:
+                                <i class="fas fa-key me-2"></i><span id="matchIdLabel">Enter Match ID:</span>
                             </h5>
-                            <input type="text" class="form-control form-control-lg" id="match_id" name="match_id"
-                                maxlength="16" pattern="[a-zA-Z0-9]+" placeholder="Enter Match ID"
-                                title="Match ID must be alphanumeric (16 characters max)">
+                            <div id="matchIdInputGroup">
+                                <input type="text" class="form-control form-control-lg" id="match_id" name="match_id"
+                                    maxlength="16" pattern="[a-zA-Z0-9]+" placeholder="Enter Match ID"
+                                    title="Match ID must be alphanumeric (16 characters max)">
+                            </div>
                             <div id="matchIdStatus" class="mt-2"></div>
                         </div>
                     </div>
@@ -80,6 +82,27 @@
                         <a href="#" class="btn btn-success btn-lg d-none" id="proceedPayment">
                             <i class="fas fa-credit-card me-2"></i>Proceed to Payment
                         </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Confirmation Modal -->
+            <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="confirmModalLabel">Create New Match ID</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>This Match ID doesn't exist yet. Would you like to create it for this cluster?</p>
+                            <p><strong>Match ID:</strong> <span id="modalMatchId"></span></p>
+                            <p><strong>Cluster:</strong> <span id="modalClusterName"></span></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="confirmCreateMatchId">Create Match ID</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -102,11 +125,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const displayTimeline = document.getElementById('displayTimeline');
     const matchIdInput = document.getElementById('match_id');
     const matchIdStatus = document.getElementById('matchIdStatus');
+    const matchIdLabel = document.getElementById('matchIdLabel');
     const checkMatchIdBtn = document.getElementById('check-match-id-btn');
     const proceedPaymentBtn = document.getElementById('proceedPayment');
+    
+    // Modal elements
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    const modalMatchId = document.getElementById('modalMatchId');
+    const modalClusterName = document.getElementById('modalClusterName');
+    const confirmCreateMatchIdBtn = document.getElementById('confirmCreateMatchId');
 
     let typingTimer;
     const debounceTime = 500;
+    let currentClusterData = null;
 
     // Cluster name input event
     clusterNameInput.addEventListener('keyup', function () {
@@ -155,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    currentClusterData = data;
                     displayClusterName.textContent = data.cluster_name;
                     displayPrice.textContent = `₹${data.price}`;
                     displayTimeline.textContent = data.timeline;
@@ -162,6 +194,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     matchIdInput.value = '';
                     matchIdStatus.innerHTML = '';
                     proceedPaymentBtn.classList.add('d-none');
+                    
+                    // Check match ID type and update UI accordingly
+                    if (data.match_id_type === 'user_created') {
+                        matchIdLabel.innerHTML = 'Create or Enter Match ID:';
+                    } else {
+                        matchIdLabel.innerHTML = 'Enter Match ID:';
+                    }
                 } else {
                     clusterStatus.innerHTML = `<i class="fas fa-exclamation-circle text-danger"></i> ${data.error}`;
                     pricingDetails.classList.add('d-none');
@@ -189,34 +228,53 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch(`/check-match-id/?match_id=${encodeURIComponent(matchId)}`)
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.exists) {
-                    if (data.cluster_name === clusterName) {
-                        matchIdStatus.innerHTML = `
-                            <div>
-                                <div><i class="fas fa-check-circle text-success"></i> Valid Match ID</div>
-                                <div>Status: <span class="${data.status === 'Active' ? 'text-success' : 'text-danger'}">${data.status}</span></div>
-                                <div>API Key: <span class="text-muted">${data.api_key}</span></div>
-                                <div>Last Paid: ${data.last_paid_date}</div>
-                            </div>`;
-                        proceedPaymentBtn.classList.toggle('d-none', !data.is_active);
+                if (data.success) {
+                    if (data.exists) {
+                        if (data.cluster_name === clusterName) {
+                            matchIdStatus.innerHTML = `
+                                <div>
+                                    <div><i class="fas fa-check-circle text-success"></i> Valid Match ID</div>
+                                    <div>Status: <span class="${data.status === 'Active' ? 'text-success' : 'text-danger'}">${data.status}</span></div>
+                                    <div>API Key: <span class="text-muted">${data.api_key}</span></div>
+                                    <div>Last Paid: ${data.last_paid_date}</div>
+                                </div>`;
+                            proceedPaymentBtn.classList.toggle('d-none', !data.is_active);
+                        } else {
+                            matchIdStatus.innerHTML = `
+                                <div>
+                                    <div><i class="fas fa-exclamation-circle text-danger"></i> Match ID does not belong to this cluster</div>
+                                    <div>Status: <span class="text-danger">${data.status}</span></div>
+                                    <div>API Key: <span class="text-muted">${data.api_key}</span></div>
+                                    <div>Last Paid: ${data.last_paid_date}</div>
+                                </div>`;
+                            proceedPaymentBtn.classList.add('d-none');
+                        }
                     } else {
-                        matchIdStatus.innerHTML = `
-                            <div>
-                                <div><i class="fas fa-exclamation-circle text-danger"></i> Match ID does not belong to this cluster</div>
-                                <div>Status: <span class="text-danger">${data.status}</span></div>
-                                <div>API Key: <span class="text-muted">${data.api_key}</span></div>
-                                <div>Last Paid: ${data.last_paid_date}</div>
-                            </div>`;
-                        proceedPaymentBtn.classList.add('d-none');
+                        // If match ID doesn't exist and cluster allows user-created match IDs
+                        if (currentClusterData && currentClusterData.match_id_type === 'user_created') {
+                            matchIdStatus.innerHTML = `
+                                <div>
+                                    <div><i class="fas fa-info-circle text-info"></i> This Match ID doesn't exist yet</div>
+                                    <div>Would you like to create this Match ID for this cluster?</div>
+                                </div>`;
+                            
+                            // Show confirmation modal
+                            modalMatchId.textContent = matchId;
+                            modalClusterName.textContent = clusterName;
+                            confirmModal.show();
+                        } else {
+                            matchIdStatus.innerHTML = `
+                                <div>
+                                    <div><i class="fas fa-times-circle text-danger"></i> Invalid Match ID</div>
+                                    <div>Status: <span class="text-danger">${data.status}</span></div>
+                                    <div>API Key: <span class="text-muted">-</span></div>
+                                    <div>Last Paid: ${data.last_paid_date}</div>
+                                </div>`;
+                            proceedPaymentBtn.classList.add('d-none');
+                        }
                     }
                 } else {
-                    matchIdStatus.innerHTML = `
-                        <div>
-                            <div><i class="fas fa-times-circle text-danger"></i> Invalid Match ID</div>
-                            <div>Status: <span class="text-danger">${data.status}</span></div>
-                            <div>API Key: <span class="text-muted">-</span></div>
-                            <div>Last Paid: ${data.last_paid_date}</div>
-                        </div>`;
+                    matchIdStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Error checking Match ID';
                     proceedPaymentBtn.classList.add('d-none');
                 }
             })
@@ -225,6 +283,75 @@ document.addEventListener('DOMContentLoaded', function () {
                 matchIdStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Error checking Match ID';
                 proceedPaymentBtn.classList.add('d-none');
             });
+    });
+    
+    // Confirm Create Match ID button click handler
+    confirmCreateMatchIdBtn.addEventListener('click', function() {
+        const matchId = matchIdInput.value.trim();
+        const clusterName = displayClusterName.textContent;
+        
+        if (!matchId || !clusterName) {
+            confirmModal.hide();
+            return;
+        }
+        
+        matchIdStatus.innerHTML = '<i class="fas fa-spinner fa-spin text-muted"></i> Creating Match ID...';
+        confirmModal.hide();
+        
+        // Create the user match ID
+        fetch('/create-user-match-id/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                cluster_name: clusterName,
+                match_id: matchId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                matchIdStatus.innerHTML = `
+                    <div>
+                        <div><i class="fas fa-check-circle text-success"></i> Match ID created successfully</div>
+                        <div>You can now proceed to payment</div>
+                    </div>`;
+                proceedPaymentBtn.classList.remove('d-none');
+                
+                // After successful creation, update the current match ID data to prevent error display
+                fetch(`/check-match-id/?match_id=${encodeURIComponent(matchId)}`)
+                    .then(response => response.json())
+                    .then(matchData => {
+                        if (matchData.success && matchData.exists) {
+                            // Update the UI with the newly created match ID details
+                            matchIdStatus.innerHTML = `
+                                <div>
+                                    <div><i class="fas fa-check-circle text-success"></i> Valid Match ID</div>
+                                    <div>Status: <span class="${matchData.status === 'Active' ? 'text-success' : 'text-danger'}">${matchData.status}</span></div>
+                                    <div>API Key: <span class="text-muted">${matchData.api_key}</span></div>
+                                    <div>Last Paid: ${matchData.last_paid_date}</div>
+                                </div>`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error refreshing match ID data:', error);
+                        // Keep the success message, don't show an error
+                    });
+            } else {
+                matchIdStatus.innerHTML = `
+                    <div>
+                        <div><i class="fas fa-exclamation-circle text-danger"></i> Error: ${data.error}</div>
+                    </div>`;
+                proceedPaymentBtn.classList.add('d-none');
+            }
+        })
+        .catch(error => {
+            console.error('Error creating match ID:', error);
+            matchIdStatus.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Error creating Match ID';
+            proceedPaymentBtn.classList.add('d-none');
+        });
     });
 });
 </script>

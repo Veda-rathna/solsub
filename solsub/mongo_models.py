@@ -22,6 +22,7 @@ class ClusterDetails(EmbeddedDocument):
     cluster_price = DecimalField(precision=2)
     cluster_timeline = StringField(max_length=255)
     api_key = StringField(max_length=32)
+    match_id_type = StringField(default='admin_generated', choices=('admin_generated', 'user_created'))
 
 class MatchId(Document):
     match_id = StringField(required=True, unique=True)
