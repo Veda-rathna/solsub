@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django.contrib import messages
 from .models import BackupCode, Cluster
-from .mongo_models import UserProfile, BankDetails, MatchId, ClusterDetails
+from .mongo_models import UserProfile, BankDetails, MatchId
 from datetime import datetime, timedelta
 import json
 import qrcode
@@ -39,6 +39,7 @@ def _get_cluster_from_user(cluster_name, api_key=None):
                 match_id_type='admin_generated',
                 trial_period=django_cluster.trial_period
             )
+            logger.debug(f"Fallback to Django Cluster for {cluster_name}: {cluster}")
     return user, cluster
 
 def _create_match_id(cluster_name, match_id=None, is_user_defined=False, is_admin_created=False):
@@ -91,7 +92,7 @@ def _build_match_id_response(match_id_obj, cluster):
     status = ("Trial Active" if is_active and match_id_obj.is_trial and now <= trial_end_date else
               "Paid Active" if is_active and not match_id_obj.is_trial else "Inactive")
 
-    response = {
+    response_data = {
         'success': True,
         'match_id': match_id_obj.match_id,
         'exists': True,
@@ -104,14 +105,14 @@ def _build_match_id_response(match_id_obj, cluster):
     }
 
     if match_id_obj.valid_till:
-        response['valid_till'] = match_id_obj.valid_till.strftime('%Y-%m-%d')
+        response_data['valid_till'] = match_id_obj.valid_till.strftime('%Y-%m-%d')
     if match_id_obj.last_paid_on:
-        response['last_paid_on'] = match_id_obj.last_paid_on.strftime('%Y-%m-%d')
+        response_data['last_paid_on'] = match_id_obj.last_paid_on.strftime('%Y-%m-%d')
     if match_id_obj.is_trial and trial_end_date:
-        response['trial_days'] = trial_period
-        response['trial_end_date'] = trial_end_date.strftime('%Y-%m-%d')
+        response_data['trial_days'] = trial_period
+        response_data['trial_end_date'] = trial_end_date.strftime('%Y-%m-%d')
 
-    return JsonResponse(response)
+    return JsonResponse(response_data)
 
 # ----------------------
 # Public Views
@@ -160,8 +161,10 @@ def check_match_id(request):
     if not match_id:
         return JsonResponse({'success': False, 'error': 'Match ID is required'}, status=400)
 
-    match_id_obj = MatchId.objects(match_id=match_id, api_key=api_key).first()
+    logger.debug(f"Checking match_id: {match_id}, api_key: {api_key}")
+    match_id_obj = MatchId.objects(match_id=match_id).first()
     if not match_id_obj:
+        logger.warning(f"MatchId not found for match_id: {match_id}")
         return JsonResponse({
             'success': True,
             'exists': False,
@@ -170,9 +173,11 @@ def check_match_id(request):
             'created_on': '-'
         })
 
-    user, cluster = _get_cluster_from_user(match_id_obj.cluster_name, api_key)
+    logger.debug(f"Found match_id_obj: {match_id_obj}")
+    user, cluster = _get_cluster_from_user(match_id_obj.cluster_name)
     if not cluster:
-        # Fallback to Django Cluster model
+        logger.warning(f"Cluster not found for cluster_name: {match_id_obj.cluster_name}")
+        # Fallback to Django Cluster if MongoDB cluster is missing
         django_cluster = Cluster.objects.filter(cluster_name=match_id_obj.cluster_name).first()
         if django_cluster:
             cluster = ClusterDetails(
@@ -183,6 +188,7 @@ def check_match_id(request):
                 match_id_type='admin_generated',
                 trial_period=django_cluster.trial_period
             )
+            logger.debug(f"Using fallback Cluster: {cluster}")
         else:
             return JsonResponse({
                 'success': True,
@@ -192,6 +198,18 @@ def check_match_id(request):
                 'cluster_name': match_id_obj.cluster_name,
                 'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
             })
+
+    # Validate api_key from cluster if provided in request
+    if api_key and cluster.api_key != api_key:
+        logger.warning(f"API key mismatch: request {api_key} vs cluster {cluster.api_key}")
+        return JsonResponse({
+            'success': True,
+            'exists': True,
+            'is_active': False,
+            'status': 'Inactive',
+            'cluster_name': match_id_obj.cluster_name,
+            'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
+        })
 
     if match_id_obj.is_trial and not match_id_obj.valid_till:
         logger.warning(f"Inconsistent MatchId {match_id}: is_trial=True but valid_till is None")
@@ -205,7 +223,11 @@ def check_match_id(request):
             'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
         }, status=400)
 
-    return _build_match_id_response(match_id_obj, cluster)
+    # Build the response data and determine status code
+    response_data = _build_match_id_response(match_id_obj, cluster).content.decode('utf-8')
+    response_dict = json.loads(response_data)
+    status_code = 201 if response_dict.get('is_active', False) else 200
+    return JsonResponse(response_dict, status=status_code)
 
 @csrf_exempt
 def generate_match_id(request):
