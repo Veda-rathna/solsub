@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django.contrib import messages
 from .models import BackupCode, Cluster
-from .mongo_models import UserProfile, BankDetails, MatchId
+from .mongo_models import UserProfile, BankDetails, MatchId, ClusterDetails
 from datetime import datetime, timedelta
 import json
 import qrcode
@@ -21,12 +21,24 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ----------------------
 
-def _get_cluster_from_user(cluster_name):
-    """Retrieve cluster from UserProfile by cluster_name."""
+def _get_cluster_from_user(cluster_name, api_key=None):
+    """Retrieve cluster from UserProfile by cluster_name and optional api_key."""
     user = UserProfile.objects(clusters__cluster_name=cluster_name).first()
     if not user:
         return None, None
     cluster = next((c for c in user.clusters if c.cluster_name == cluster_name), None)
+    if not cluster and api_key:
+        # Fallback to Django Cluster model if MongoDB cluster not found
+        django_cluster = Cluster.objects.filter(cluster_name=cluster_name).first()
+        if django_cluster:
+            cluster = ClusterDetails(
+                cluster_name=django_cluster.cluster_name,
+                cluster_price=float(django_cluster.cluster_price),
+                timeline_days=django_cluster.timeline_days,
+                api_key=django_cluster.api_key,
+                match_id_type='admin_generated',
+                trial_period=django_cluster.trial_period
+            )
     return user, cluster
 
 def _create_match_id(cluster_name, match_id=None, is_user_defined=False, is_admin_created=False):
@@ -81,13 +93,13 @@ def _build_match_id_response(match_id_obj, cluster):
 
     response = {
         'success': True,
-        'match_id': match_id_obj.match_id,  # Explicitly include match_id
+        'match_id': match_id_obj.match_id,
         'exists': True,
         'is_active': is_active,
         'status': status,
         'cluster_name': match_id_obj.cluster_name,
-        'price': str(cluster.cluster_price),
-        'timeline': f"{cluster.timeline_days} days",
+        'price': str(getattr(cluster, 'cluster_price', 0.0)),
+        'timeline': f"{getattr(cluster, 'timeline_days', 30)} days",
         'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
     }
 
@@ -144,10 +156,11 @@ def get_cluster_details(request):
 @csrf_exempt
 def check_match_id(request):
     match_id = request.GET.get('match_id', '')
+    api_key = request.GET.get('api_key', '')
     if not match_id:
         return JsonResponse({'success': False, 'error': 'Match ID is required'}, status=400)
 
-    match_id_obj = MatchId.objects(match_id=match_id).first()
+    match_id_obj = MatchId.objects(match_id=match_id, api_key=api_key).first()
     if not match_id_obj:
         return JsonResponse({
             'success': True,
@@ -157,16 +170,28 @@ def check_match_id(request):
             'created_on': '-'
         })
 
-    user, cluster = _get_cluster_from_user(match_id_obj.cluster_name)
-    if not user or not cluster:
-        return JsonResponse({
-            'success': True,
-            'exists': True,
-            'is_active': False,
-            'status': 'Inactive',
-            'cluster_name': match_id_obj.cluster_name,
-            'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
-        })
+    user, cluster = _get_cluster_from_user(match_id_obj.cluster_name, api_key)
+    if not cluster:
+        # Fallback to Django Cluster model
+        django_cluster = Cluster.objects.filter(cluster_name=match_id_obj.cluster_name).first()
+        if django_cluster:
+            cluster = ClusterDetails(
+                cluster_name=django_cluster.cluster_name,
+                cluster_price=float(django_cluster.cluster_price),
+                timeline_days=django_cluster.timeline_days,
+                api_key=django_cluster.api_key,
+                match_id_type='admin_generated',
+                trial_period=django_cluster.trial_period
+            )
+        else:
+            return JsonResponse({
+                'success': True,
+                'exists': True,
+                'is_active': False,
+                'status': 'Inactive',
+                'cluster_name': match_id_obj.cluster_name,
+                'created_on': match_id_obj.created_on.strftime('%Y-%m-%d')
+            })
 
     if match_id_obj.is_trial and not match_id_obj.valid_till:
         logger.warning(f"Inconsistent MatchId {match_id}: is_trial=True but valid_till is None")
@@ -227,11 +252,10 @@ def create_user_match_id(request):
         data = json.loads(request.body)
         cluster_name = data.get('cluster_name', '')
         match_id = data.get('match_id', '')
-        is_admin_created = data.get('is_admin_created', False)  # New flag from frontend
+        is_admin_created = data.get('is_admin_created', False)
         if not cluster_name:
             return JsonResponse({'success': False, 'error': 'Cluster name is required'}, status=400)
 
-        # Allow empty match_id for admin auto-generation
         if not match_id and is_admin_created:
             match_id = str(uuid.uuid4())[:8].upper()
 
