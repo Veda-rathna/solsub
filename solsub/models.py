@@ -2,17 +2,24 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.crypto import get_random_string
 import secrets
+from django.core import validators
 
 class Cluster(models.Model):
     cluster_name = models.CharField(max_length=255, unique=True)
     cluster_id = models.CharField(max_length=100, unique=True)
     cluster_price = models.DecimalField(max_digits=10, decimal_places=2)
-    cluster_timeline = models.CharField(max_length=255)
+    timeline_days = models.IntegerField(default=30, validators=[
+        validators.MinValueValidator(1),
+        validators.MaxValueValidator(30)
+    ])
     api_key = models.CharField(max_length=32, unique=True, blank=True)
+    trial_period = models.IntegerField(default=0, validators=[
+        validators.MinValueValidator(0),
+        validators.MaxValueValidator(7)
+    ])
 
     def save(self, *args, **kwargs):
         if not self.api_key:
-            # Generate a unique API key
             while True:
                 key = secrets.token_hex(16)
                 if not Cluster.objects.filter(api_key=key).exists():
@@ -31,16 +38,5 @@ class BackupCode(models.Model):
 
     @classmethod
     def generate_codes(cls, user, count=10):
-        # Delete existing unused codes
         cls.objects.filter(user=user, used=False).delete()
-        
-        # Generate new codes
-        codes = []
-        for _ in range(count):
-            code = cls.objects.create(
-                user=user,
-                code=get_random_string(8)
-            )
-            codes.append(code)
-        return codes
-
+        return [cls.objects.create(user=user, code=get_random_string(8)) for _ in range(count)]
